@@ -1,0 +1,7 @@
+# Langton's Ant Simulation Files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+.vscode/
+node_modules/

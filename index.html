@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Langton's Ant Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="controls-trigger" title="Click to open controls">⚙️</div>
+    
+    <div id="controls-panel" class="hidden">
+        <div class="controls-header">
+            <h3>Simulation Controls</h3>
+            <button id="close-controls">×</button>
+        </div>
+        
+        <div class="control-group">
+            <label for="num-ants">Number of Ants:</label>
+            <input type="number" id="num-ants" min="1" max="20" value="1">
+        </div>
+        
+        <div class="control-group">
+            <label for="speed">Speed (FPS):</label>
+            <input type="range" id="speed" min="1" max="120" value="10">
+            <span id="speed-value">10</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="steps-per-frame">Steps per Frame:</label>
+            <input type="range" id="steps-per-frame" min="1" max="1000" value="1">
+            <span id="steps-value">1</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="performance-mode">Performance Mode:</label>
+            <select id="performance-mode">
+                <option value="normal">Normal</option>
+                <option value="fast">Fast (No ant rendering)</option>
+                <option value="ultra">Ultra (Minimal rendering)</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="rule-preset">Rule Preset:</label>
+            <select id="rule-preset">
+                <option value="RL">Classic RL</option>
+                <option value="RLR">RLR</option>
+                <option value="LLRR">LLRR</option>
+                <option value="LRRRRRLLR">LRRRRRLLR</option>
+                <option value="LLRRRLRLRLLR">LLRRRLRLRLLR</option>
+                <option value="RRLLLRLLLRRR">RRLLLRLLLRRR</option>
+                <option value="L2NNL1L2L1">L2NNL1L2L1</option>
+                <option value="L1L2NUL2L1R2">L1L2NUL2L1R2</option>
+                <option value="R1R2NUR2R1L2">R1R2NUR2R1L2</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+        
+        <div class="control-group" id="custom-rule-group" style="display: none;">
+            <label for="custom-rule">Custom Rule:</label>
+            <input type="text" id="custom-rule" placeholder="e.g., RLRL">
+        </div>
+        
+        <div class="control-group">
+            <label for="ant-type">Ant Type:</label>
+            <select id="ant-type">
+                <option value="langton">Langton's Ant</option>
+                <option value="turmite1">Turmite 1 (Binary)</option>
+                <option value="turmite2">Turmite 2 (Spiral)</option>
+                <option value="turmite3">Turmite 3 (Fibonacci)</option>
+                <option value="turmite4">Turmite 4 (Complex)</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="zoom-level">Zoom Level:</label>
+            <input type="range" id="zoom-level" min="1" max="20" value="3" step="0.5">
+            <span id="zoom-value">3x</span>
+            <div class="zoom-info">Use mouse wheel to zoom</div>
+        </div>
+        
+        <div class="control-buttons">
+            <button id="start-pause">Start</button>
+            <button id="reset">Reset</button>
+            <button id="step">Step</button>
+        </div>
+        
+        <div class="info">
+            <div>Steps: <span id="step-counter">0</span></div>
+            <div>Active Ants: <span id="ant-counter">1</span></div>
+        </div>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <script src="langtons-ant.js"></script>
+</body>
+</html>
