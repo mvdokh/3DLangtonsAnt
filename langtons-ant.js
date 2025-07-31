@@ -273,6 +273,18 @@ class LangtonsAntSimulation {
         }
     }
     
+    autoStartSimulation() {
+        if (!this.isRunning) {
+            setTimeout(() => {
+                this.isRunning = true;
+                const button = document.getElementById('start-pause');
+                button.textContent = 'Pause';
+                button.classList.add('running');
+                this.animate();
+            }, 100); // Small delay to ensure UI is updated
+        }
+    }
+    
     reset() {
         this.isRunning = false;
         this.stepCounter = 0;
@@ -296,6 +308,9 @@ class LangtonsAntSimulation {
         this.centerView();
         this.updateUI();
         this.render();
+        
+        // Auto-start the simulation
+        this.autoStartSimulation();
     }
     
     step() {
