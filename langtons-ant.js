@@ -81,6 +81,7 @@ class LangtonsAntSimulation {
         this.initializeGrid();
         this.initializeControls();
         this.reset();
+        this.autoStartSimulation(); // Auto-start when page loads
     }
     
     getColorFromHue(hue) {
