@@ -170,6 +170,7 @@ class LangtonsAntSimulation {
         // Control inputs
         document.getElementById('num-ants').addEventListener('change', (e) => {
             this.reset();
+            this.autoStartSimulation();
         });
         
         document.getElementById('speed').addEventListener('input', (e) => {
@@ -203,17 +204,20 @@ class LangtonsAntSimulation {
                 customGroup.style.display = 'none';
                 this.rules = e.target.value;
                 this.reset();
+                this.autoStartSimulation();
             }
         });
         
         document.getElementById('custom-rule').addEventListener('change', (e) => {
             this.rules = e.target.value || 'RL';
             this.reset();
+            this.autoStartSimulation();
         });
         
         document.getElementById('ant-type').addEventListener('change', (e) => {
             this.antType = e.target.value;
             this.reset();
+            this.autoStartSimulation();
         });
         
         document.getElementById('start-pause').addEventListener('click', () => {
@@ -309,8 +313,11 @@ class LangtonsAntSimulation {
         this.updateUI();
         this.render();
         
-        // Auto-start the simulation
-        this.autoStartSimulation();
+        // Stop animation if running
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
     }
     
     step() {
