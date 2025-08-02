@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Langton's Ant Simulation</title>
+    <title>3D Langton's Ant Simulation</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
     <div id="controls-trigger" title="Click to open controls">⚙️</div>
@@ -44,15 +45,24 @@
         <div class="control-group">
             <label for="rule-preset">Rule Preset:</label>
             <select id="rule-preset">
-                <option value="RL">Classic RL</option>
-                <option value="RLR">RLR</option>
-                <option value="LLRR">LLRR</option>
-                <option value="LRRRRRLLR">LRRRRRLLR</option>
-                <option value="LLRRRLRLRLLR">LLRRRLRLRLLR</option>
-                <option value="RRLLLRLLLRRR">RRLLLRLLLRRR</option>
-                <option value="L2NNL1L2L1">L2NNL1L2L1</option>
-                <option value="L1L2NUL2L1R2">L1L2NUL2L1R2</option>
-                <option value="R1R2NUR2R1L2">R1R2NUR2R1L2</option>
+                <optgroup label="2D Rules">
+                    <option value="RL">Classic RL</option>
+                    <option value="RLR">RLR</option>
+                    <option value="LLRR">LLRR</option>
+                    <option value="LRRRRRLLR">LRRRRRLLR</option>
+                    <option value="LLRRRLRLRLLR">LLRRRLRLRLLR</option>
+                    <option value="RRLLLRLLLRRR">RRLLLRLLLRRR</option>
+                    <option value="L2NNL1L2L1">L2NNL1L2L1</option>
+                    <option value="L1L2NUL2L1R2">L1L2NUL2L1R2</option>
+                    <option value="R1R2NUR2R1L2">R1R2NUR2R1L2</option>
+                </optgroup>
+                <optgroup label="3D Rules">
+                    <option value="3D_SPIRAL">3D Spiral (RLUD)</option>
+                    <option value="3D_HELIX">3D Helix (RLUDUD)</option>
+                    <option value="3D_TOWER">3D Tower (LRRLUD)</option>
+                    <option value="3D_MAZE">3D Maze (RLRLUD)</option>
+                    <option value="3D_CRYSTAL">3D Crystal (LRUDUDLR)</option>
+                </optgroup>
                 <option value="custom">Custom</option>
             </select>
         </div>
@@ -80,6 +90,21 @@
             <div class="zoom-info">Use mouse wheel to zoom</div>
         </div>
         
+        <div class="control-group">
+            <label for="grid-size">Grid Size:</label>
+            <input type="range" id="grid-size" min="20" max="500" value="50" step="10">
+            <span id="grid-size-value">50</span>
+        </div>
+        
+        <div class="control-group">
+            <label>3D Controls:</label>
+            <div class="control-info">
+                <div>• Click and drag to rotate view</div>
+                <div>• Mouse wheel to zoom</div>
+                <div>• Right-click drag to pan</div>
+            </div>
+        </div>
+        
         <div class="control-buttons">
             <button id="start-pause">Start</button>
             <button id="reset">Reset</button>
@@ -92,7 +117,7 @@
         </div>
     </div>
     
-    <canvas id="canvas"></canvas>
+    <div id="canvas-container"></div>
     
     <script src="langtons-ant.js"></script>
 </body>

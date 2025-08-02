@@ -1,44 +1,68 @@
-class LangtonsAntSimulation {
+class LangtonsAnt3DSimulation {
     constructor() {
-        this.canvas = document.getElementById('canvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.gridSize = 200;
-        this.cellSize = 3;
-        this.zoomLevel = 3;
-        this.viewportX = 0;
-        this.viewportY = 0;
+        this.container = document.getElementById('canvas-container');
+        this.gridSize = 50;
         this.isRunning = false;
         this.stepCounter = 0;
         this.fps = 10;
         this.stepsPerFrame = 1;
         this.animationId = null;
         
-        // Performance optimizations
-        this.imageData = null;
-        this.pixelData = null;
-        this.dirtyRegions = new Set();
-        this.lastRenderTime = 0;
-        this.performanceMode = 'normal';
-        this.renderSkipCounter = 0;
-        this.actualZoom = 1;
+        // 3D Scene setup
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
+        this.cubeGeometry = null;
+        this.cubes = [];
+        this.antMeshes = [];
         
-        // Initialize grid and ants
+        // Grid and ants
         this.grid = [];
         this.ants = [];
         this.rules = 'RL';
         this.antType = 'langton';
+        this.is3DRule = false; // Track if current rule uses 3D movement
+        
+        // 2D rule sets (classic behavior)
+        this.twoDRules = new Set(['RL', 'RLR', 'LLRR', 'LRRRRRLLR', 'LLRRRLRLRLLR', 'RRLLLRLLLRRR', 'L2NNL1L2L1', 'L1L2NUL2L1R2', 'R1R2NUR2R1L2']);
+        
+        // 3D rule definitions
+        this.threeDRules = {
+            '3D_SPIRAL': 'RLUD',
+            '3D_HELIX': 'RLUDUD', 
+            '3D_TOWER': 'LRRLUD',
+            '3D_MAZE': 'RLRLUD',
+            '3D_CRYSTAL': 'LRUDUDLR'
+        };
+        
+        // Mouse controls
+        this.mouseDown = false;
+        this.mouseButton = 0;
+        this.previousMousePosition = { x: 0, y: 0 };
+        this.cameraTarget = new THREE.Vector3(0, 0, 0);
+        this.cameraRadius = 100;
+        this.cameraTheta = 0;
+        this.cameraPhi = Math.PI / 4;
+        this.lastRenderTime = 0;
         
         // Color palettes for different rules
         this.colorPalettes = {
-            'RL': ['#000000', '#FFFFFF'],
-            'RLR': ['#000000', '#FF0000', '#FFFFFF'],
-            'LLRR': ['#000000', '#FF0000', '#00FF00', '#FFFFFF'],
-            'LRRRRRLLR': ['#000000', '#FF0000', '#FF8000', '#FFFF00', '#80FF00', '#00FF00', '#00FF80', '#00FFFF', '#0080FF', '#FFFFFF'],
+            'RL': [0x000000, 0xFFFFFF],
+            'RLR': [0x000000, 0xFF0000, 0xFFFFFF],
+            'LLRR': [0x000000, 0xFF0000, 0x00FF00, 0xFFFFFF],
+            'LRRRRRLLR': [0x000000, 0xFF0000, 0xFF8000, 0xFFFF00, 0x80FF00, 0x00FF00, 0x00FF80, 0x00FFFF, 0x0080FF, 0xFFFFFF],
             'LLRRRLRLRLLR': Array.from({length: 12}, (_, i) => this.getColorFromHue(i * 30)),
             'RRLLLRLLLRRR': Array.from({length: 12}, (_, i) => this.getColorFromHue(i * 30)),
-            'L2NNL1L2L1': ['#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'],
-            'L1L2NUL2L1R2': ['#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFFFFF'],
-            'R1R2NUR2R1L2': ['#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFFFFF']
+            'L2NNL1L2L1': [0x000000, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF],
+            'L1L2NUL2L1R2': [0x000000, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF, 0xFFFFFF],
+            'R1R2NUR2R1L2': [0x000000, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF, 0xFFFFFF],
+            // 3D rule palettes
+            'RLUD': [0x000000, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00],
+            'RLUDUD': [0x000000, 0xFF4500, 0x32CD32, 0x4169E1, 0xFFD700, 0xFF69B4, 0x00CED1],
+            'LRRLUD': [0x000000, 0x8B0000, 0x006400, 0x000080, 0xB8860B, 0x8B008B, 0x008B8B],
+            'RLRLUD': [0x000000, 0xFF6347, 0x90EE90, 0x87CEEB, 0xF0E68C, 0xDDA0DD],
+            'LRUDUDLR': [0x000000, 0xDC143C, 0x228B22, 0x4682B4, 0xDAA520, 0x9932CC, 0x20B2AA, 0xFF1493]
         };
         
         this.turmiteRules = {
@@ -77,16 +101,17 @@ class LangtonsAntSimulation {
             }
         };
         
-        this.initializeCanvas();
+        this.initializeScene();
         this.initializeGrid();
         this.initializeControls();
+        this.setupMouseControls();
         this.reset();
         this.autoStartSimulation(); // Auto-start when page loads
     }
     
     getColorFromHue(hue) {
         const c = this.hslToRgb(hue / 360, 0.8, 0.6);
-        return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+        return (c[0] << 16) | (c[1] << 8) | c[2];
     }
     
     hslToRgb(h, s, l) {
@@ -111,47 +136,137 @@ class LangtonsAntSimulation {
         return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
     }
     
-    initializeCanvas() {
-        this.resizeCanvas();
-        this.ctx.imageSmoothingEnabled = false;
+    initializeScene() {
+        // Create scene
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x1a1a1a);
         
-        // Add resize listener
+        // Create camera
+        this.camera = new THREE.PerspectiveCamera(
+            75, 
+            window.innerWidth / window.innerHeight, 
+            0.1, 
+            1000
+        );
+        
+        // Create renderer
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.container.appendChild(this.renderer.domElement);
+        
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        this.scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(50, 50, 50);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        this.scene.add(directionalLight);
+        
+        // Initialize camera position
+        this.updateCameraPosition();
+        
+        // Create cube geometry for grid cells
+        this.cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+        
+        // Handle window resize
         window.addEventListener('resize', () => {
-            this.resizeCanvas();
-            this.render();
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
     }
     
-    resizeCanvas() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+    setupMouseControls() {
+        const canvas = this.renderer.domElement;
         
-        // Initialize ImageData for faster rendering
-        this.imageData = this.ctx.createImageData(this.canvas.width, this.canvas.height);
-        this.pixelData = this.imageData.data;
+        canvas.addEventListener('mousedown', (e) => {
+            this.mouseDown = true;
+            this.mouseButton = e.button;
+            this.previousMousePosition = { x: e.clientX, y: e.clientY };
+            e.preventDefault();
+        });
         
-        // Always center the viewport on the grid center
-        this.centerView();
+        canvas.addEventListener('mouseup', () => {
+            this.mouseDown = false;
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (this.mouseDown) {
+                const deltaX = e.clientX - this.previousMousePosition.x;
+                const deltaY = e.clientY - this.previousMousePosition.y;
+                
+                if (this.mouseButton === 0) { // Left mouse button - rotate
+                    this.cameraTheta -= deltaX * 0.01;
+                    this.cameraPhi += deltaY * 0.01;
+                    this.cameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, this.cameraPhi));
+                } else if (this.mouseButton === 2) { // Right mouse button - pan
+                    const panSpeed = 0.1;
+                    const right = new THREE.Vector3();
+                    const up = new THREE.Vector3();
+                    this.camera.getWorldDirection(new THREE.Vector3());
+                    right.setFromMatrixColumn(this.camera.matrix, 0);
+                    up.setFromMatrixColumn(this.camera.matrix, 1);
+                    
+                    this.cameraTarget.add(right.multiplyScalar(-deltaX * panSpeed));
+                    this.cameraTarget.add(up.multiplyScalar(deltaY * panSpeed));
+                }
+                
+                this.updateCameraPosition();
+                this.previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSpeed = 5;
+            this.cameraRadius += e.deltaY > 0 ? zoomSpeed : -zoomSpeed;
+            this.cameraRadius = Math.max(10, Math.min(200, this.cameraRadius));
+            this.updateCameraPosition();
+        });
+        
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
     }
     
-    centerView() {
-        // Calculate zoom level to fit the entire grid on screen at 1x
-        const maxZoomX = this.canvas.width / this.gridSize;
-        const maxZoomY = this.canvas.height / this.gridSize;
-        const baseZoom = Math.min(maxZoomX, maxZoomY);
+    updateCameraPosition() {
+        const x = this.cameraTarget.x + this.cameraRadius * Math.sin(this.cameraPhi) * Math.cos(this.cameraTheta);
+        const y = this.cameraTarget.y + this.cameraRadius * Math.cos(this.cameraPhi);
+        const z = this.cameraTarget.z + this.cameraRadius * Math.sin(this.cameraPhi) * Math.sin(this.cameraTheta);
         
-        // Apply the user's zoom multiplier to the base zoom
-        const actualZoom = baseZoom * this.zoomLevel;
-        
-        this.viewportX = (this.gridSize * actualZoom - this.canvas.width) / 2;
-        this.viewportY = (this.gridSize * actualZoom - this.canvas.height) / 2;
-        
-        // Store the actual zoom for rendering
-        this.actualZoom = actualZoom;
+        this.camera.position.set(x, y, z);
+        this.camera.lookAt(this.cameraTarget);
     }
     
     initializeGrid() {
-        this.grid = Array(this.gridSize).fill().map(() => Array(this.gridSize).fill(0));
+        this.grid = Array(this.gridSize).fill().map(() => 
+            Array(this.gridSize).fill().map(() => 
+                Array(this.gridSize).fill(0)
+            )
+        );
+        
+        // Clear existing cubes
+        this.cubes.forEach(cubeLayer => {
+            cubeLayer.forEach(cubeRow => {
+                cubeRow.forEach(cube => {
+                    if (cube) {
+                        this.scene.remove(cube);
+                    }
+                });
+            });
+        });
+        
+        // Initialize 3D cube array
+        this.cubes = Array(this.gridSize).fill().map(() => 
+            Array(this.gridSize).fill().map(() => 
+                Array(this.gridSize).fill(null)
+            )
+        );
     }
     
     initializeControls() {
@@ -174,10 +289,15 @@ class LangtonsAntSimulation {
             this.autoStartSimulation();
         });
         
+        document.getElementById('grid-size').addEventListener('input', (e) => {
+            this.gridSize = parseInt(e.target.value);
+            document.getElementById('grid-size-value').textContent = this.gridSize;
+            this.reset();
+        });
+        
         document.getElementById('speed').addEventListener('input', (e) => {
             this.fps = parseInt(e.target.value);
             document.getElementById('speed-value').textContent = this.fps;
-            // No need to restart animation, it will pick up the new FPS automatically
         });
         
         document.getElementById('steps-per-frame').addEventListener('input', (e) => {
@@ -186,15 +306,13 @@ class LangtonsAntSimulation {
         });
         
         document.getElementById('zoom-level').addEventListener('input', (e) => {
-            this.zoomLevel = parseFloat(e.target.value);
-            document.getElementById('zoom-value').textContent = this.zoomLevel + 'x';
-            this.centerView();
-            this.render();
+            this.cameraRadius = 200 - (parseFloat(e.target.value) - 1) * 10;
+            document.getElementById('zoom-value').textContent = e.target.value + 'x';
+            this.updateCameraPosition();
         });
         
         document.getElementById('performance-mode').addEventListener('change', (e) => {
-            this.performanceMode = e.target.value;
-            this.render();
+            // Performance mode can be implemented for 3D if needed
         });
         
         document.getElementById('rule-preset').addEventListener('change', (e) => {
@@ -203,7 +321,16 @@ class LangtonsAntSimulation {
                 customGroup.style.display = 'block';
             } else {
                 customGroup.style.display = 'none';
-                this.rules = e.target.value;
+                
+                // Check if it's a 3D rule
+                if (this.threeDRules[e.target.value]) {
+                    this.rules = this.threeDRules[e.target.value];
+                    this.is3DRule = true;
+                } else {
+                    this.rules = e.target.value;
+                    this.is3DRule = false;
+                }
+                
                 this.reset();
                 this.autoStartSimulation();
             }
@@ -211,6 +338,8 @@ class LangtonsAntSimulation {
         
         document.getElementById('custom-rule').addEventListener('change', (e) => {
             this.rules = e.target.value || 'RL';
+            // Custom rules are assumed to be 2D unless they contain 3D movement indicators
+            this.is3DRule = /[UD]/.test(this.rules);
             this.reset();
             this.autoStartSimulation();
         });
@@ -235,46 +364,48 @@ class LangtonsAntSimulation {
                 this.render();
             }
         });
-        
-        // Canvas click to add ants
-        this.canvas.addEventListener('click', (e) => {
-            if (!this.isRunning) {
-                const rect = this.canvas.getBoundingClientRect();
-                const x = Math.floor((e.clientX - rect.left + this.viewportX) / this.actualZoom);
-                const y = Math.floor((e.clientY - rect.top + this.viewportY) / this.actualZoom);
-                this.addAnt(x, y);
-                this.render();
-            }
-        });
-        
-        // Mouse wheel zooming (centered)
-        this.canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            
-            // Update zoom
-            const zoomChange = e.deltaY > 0 ? -0.5 : 0.5;
-            this.zoomLevel = Math.max(0.5, Math.min(20, this.zoomLevel + zoomChange));
-            
-            // Update the zoom display
-            document.getElementById('zoom-level').value = this.zoomLevel;
-            document.getElementById('zoom-value').textContent = this.zoomLevel + 'x';
-            
-            // Always center the view
-            this.centerView();
-            this.render();
-        });
     }
     
-    addAnt(x, y, direction = 0, state = 0) {
-        if (x >= 0 && x < this.gridSize && y >= 0 && y < this.gridSize) {
-            this.ants.push({
+    addAnt(x, y, z, direction = 0, state = 0) {
+        if (x >= 0 && x < this.gridSize && y >= 0 && y < this.gridSize && z >= 0 && z < this.gridSize) {
+            const ant = {
                 x: x,
                 y: y,
-                direction: direction, // 0: North, 1: East, 2: South, 3: West
+                z: z,
+                direction: direction, // 0-5: +X, -X, +Y, -Y, +Z, -Z
                 state: state, // For turmites
                 active: true
-            });
+            };
+            this.ants.push(ant);
+            
+            // Create 3D ant representation
+            const antGeometry = new THREE.SphereGeometry(0.3, 8, 6);
+            const antMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            const antMesh = new THREE.Mesh(antGeometry, antMaterial);
+            
+            antMesh.position.set(
+                x - this.gridSize / 2,
+                y - this.gridSize / 2,
+                z - this.gridSize / 2
+            );
+            
+            this.scene.add(antMesh);
+            this.antMeshes.push(antMesh);
+            
             this.updateAntCounter();
+        }
+    }
+    
+    updateAntPosition(antIndex) {
+        if (antIndex < this.antMeshes.length && antIndex < this.ants.length) {
+            const ant = this.ants[antIndex];
+            const mesh = this.antMeshes[antIndex];
+            
+            mesh.position.set(
+                ant.x - this.gridSize / 2,
+                ant.y - this.gridSize / 2,
+                ant.z - this.gridSize / 2
+            );
         }
     }
     
@@ -286,31 +417,41 @@ class LangtonsAntSimulation {
                 button.textContent = 'Pause';
                 button.classList.add('running');
                 this.animate();
-            }, 100); // Small delay to ensure UI is updated
+            }, 100);
         }
     }
     
     reset() {
         this.isRunning = false;
         this.stepCounter = 0;
+        
+        // Remove all ants from scene
+        this.antMeshes.forEach(mesh => {
+            this.scene.remove(mesh);
+        });
         this.ants = [];
+        this.antMeshes = [];
+        
         this.initializeGrid();
         
         const numAnts = parseInt(document.getElementById('num-ants').value);
         const centerX = Math.floor(this.gridSize / 2);
         const centerY = Math.floor(this.gridSize / 2);
+        const centerZ = Math.floor(this.gridSize / 2);
         
-        // Add ants in a small circle around center
+        // Add ants in a small pattern around center
         for (let i = 0; i < numAnts; i++) {
             const angle = (i / numAnts) * 2 * Math.PI;
-            const radius = Math.min(5, numAnts);
+            const radius = Math.min(3, numAnts);
             const x = centerX + Math.floor(Math.cos(angle) * radius);
-            const y = centerY + Math.floor(Math.sin(angle) * radius);
-            this.addAnt(x, y, i % 4);
+            const y = centerY;
+            const z = this.is3DRule ? centerZ + Math.floor(Math.sin(angle) * radius) : centerZ;
+            
+            // For 2D rules, limit initial direction to 0-3 (X-Y plane)
+            const direction = this.is3DRule ? i % 6 : i % 4;
+            this.addAnt(x, y, z, direction);
         }
         
-        // Center the view on the grid
-        this.centerView();
         this.updateUI();
         this.render();
         
@@ -322,7 +463,7 @@ class LangtonsAntSimulation {
     }
     
     step() {
-        this.ants.forEach(ant => {
+        this.ants.forEach((ant, index) => {
             if (!ant.active) return;
             
             if (this.antType === 'langton') {
@@ -330,6 +471,8 @@ class LangtonsAntSimulation {
             } else {
                 this.stepTurmite(ant);
             }
+            
+            this.updateAntPosition(index);
         });
         
         this.stepCounter++;
@@ -337,7 +480,7 @@ class LangtonsAntSimulation {
     }
     
     stepLangtonAnt(ant) {
-        const currentCell = this.grid[ant.y][ant.x];
+        const currentCell = this.grid[ant.y][ant.x][ant.z];
         const ruleIndex = currentCell % this.rules.length;
         const rule = this.rules[ruleIndex];
         
@@ -354,11 +497,14 @@ class LangtonsAntSimulation {
         } else if (rule === 'N') {
             turn = 'N'; // No turn
         } else if (rule === 'U') {
-            turn = 'U'; // U-turn (180 degrees)
+            turn = this.is3DRule ? 'U' : 'UU'; // Up in 3D, or 180 turn in 2D
+        } else if (rule === 'D') {
+            turn = this.is3DRule ? 'D' : 'UU'; // Down in 3D, or 180 turn in 2D
         }
         
         // Update cell color
-        this.grid[ant.y][ant.x] = (currentCell + 1) % this.rules.length;
+        this.grid[ant.y][ant.x][ant.z] = (currentCell + 1) % this.rules.length;
+        this.updateGridVisualization(ant.x, ant.y, ant.z);
         
         // Turn the ant
         this.turnAnt(ant, turn);
@@ -371,11 +517,12 @@ class LangtonsAntSimulation {
         const turmiteRule = this.turmiteRules[this.antType];
         if (!turmiteRule) return;
         
-        const currentCell = this.grid[ant.y][ant.x];
+        const currentCell = this.grid[ant.y][ant.x][ant.z];
         const transition = turmiteRule.transitions[ant.state][currentCell % turmiteRule.transitions[ant.state].length];
         
         // Write new value to cell
-        this.grid[ant.y][ant.x] = transition.write;
+        this.grid[ant.y][ant.x][ant.z] = transition.write;
+        this.updateGridVisualization(ant.x, ant.y, ant.z);
         
         // Turn the ant
         this.turnAnt(ant, transition.turn);
@@ -388,34 +535,67 @@ class LangtonsAntSimulation {
     }
     
     turnAnt(ant, turn) {
-        switch (turn) {
-            case 'L':
-                ant.direction = (ant.direction + 3) % 4;
-                break;
-            case 'R':
-                ant.direction = (ant.direction + 1) % 4;
-                break;
-            case 'LL':
-                ant.direction = (ant.direction + 2) % 4;
-                break;
-            case 'RR':
-                ant.direction = (ant.direction + 2) % 4;
-                break;
-            case 'U':
-                ant.direction = (ant.direction + 2) % 4;
-                break;
-            case 'N':
-                // No turn
-                break;
+        if (this.is3DRule) {
+            // 3D directions: 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z, 5: -Z
+            const rotationMap = {
+                'L': [2, 3, 1, 0, 4, 5], // Rotate around Z axis (counterclockwise)
+                'R': [3, 2, 0, 1, 4, 5], // Rotate around Z axis (clockwise)
+                'LL': [1, 0, 3, 2, 4, 5], // 180 degrees around Z
+                'RR': [1, 0, 3, 2, 4, 5], // 180 degrees around Z
+                'U': [4, 5, 2, 3, 1, 0], // Turn to face up/down (Z direction)
+                'D': [5, 4, 2, 3, 0, 1], // Turn to face down/up (Z direction)
+                'UU': [1, 0, 3, 2, 4, 5], // U-turn (180 degrees)
+                'N': [0, 1, 2, 3, 4, 5]  // No turn
+            };
+            
+            if (rotationMap[turn]) {
+                ant.direction = rotationMap[turn][ant.direction];
+            }
+        } else {
+            // 2D movement: limit to X-Y plane (directions 0-3)
+            // 0: +X, 1: -X, 2: +Y, 3: -Y
+            switch (turn) {
+                case 'L':
+                    ant.direction = [2, 3, 1, 0][ant.direction % 4];
+                    break;
+                case 'R':
+                    ant.direction = [3, 2, 0, 1][ant.direction % 4];
+                    break;
+                case 'LL':
+                case 'RR':
+                case 'U':
+                case 'UU':
+                    ant.direction = [1, 0, 3, 2][ant.direction % 4]; // 180 degrees
+                    break;
+                case 'D': // In 2D, treat D as reverse like U
+                    ant.direction = [1, 0, 3, 2][ant.direction % 4]; // 180 degrees
+                    break;
+                case 'N':
+                    // No turn
+                    break;
+            }
         }
     }
     
     moveAnt(ant) {
-        const dx = [0, 1, 0, -1]; // North, East, South, West
-        const dy = [-1, 0, 1, 0];
-        
-        ant.x += dx[ant.direction];
-        ant.y += dy[ant.direction];
+        if (this.is3DRule) {
+            // 3D movement directions: 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z, 5: -Z
+            const dx = [1, -1, 0, 0, 0, 0];
+            const dy = [0, 0, 1, -1, 0, 0];
+            const dz = [0, 0, 0, 0, 1, -1];
+            
+            ant.x += dx[ant.direction];
+            ant.y += dy[ant.direction];
+            ant.z += dz[ant.direction];
+        } else {
+            // 2D movement: only move in X-Y plane, keep Z constant
+            const dx = [1, -1, 0, 0]; // +X, -X, +Y, -Y
+            const dy = [0, 0, 1, -1];
+            
+            ant.x += dx[ant.direction % 4];
+            ant.y += dy[ant.direction % 4];
+            // Z stays the same for 2D rules
+        }
         
         // Wrap around the grid instead of marking as inactive
         if (ant.x < 0) {
@@ -429,105 +609,48 @@ class LangtonsAntSimulation {
         } else if (ant.y >= this.gridSize) {
             ant.y = 0;
         }
+        
+        if (ant.z < 0) {
+            ant.z = this.gridSize - 1;
+        } else if (ant.z >= this.gridSize) {
+            ant.z = 0;
+        }
+    }
+    
+    updateGridVisualization(x, y, z) {
+        const cellValue = this.grid[y][x][z];
+        
+        // Remove existing cube if it exists
+        if (this.cubes[y][x][z]) {
+            this.scene.remove(this.cubes[y][x][z]);
+            this.cubes[y][x][z] = null;
+        }
+        
+        // Add new cube if cell is not empty
+        if (cellValue > 0) {
+            const colors = this.colorPalettes[this.rules] || this.generateColorPalette(this.rules.length);
+            const color = colors[cellValue % colors.length];
+            
+            const material = new THREE.MeshPhongMaterial({ color: color });
+            const cube = new THREE.Mesh(this.cubeGeometry, material);
+            
+            cube.position.set(
+                x - this.gridSize / 2,
+                y - this.gridSize / 2,
+                z - this.gridSize / 2
+            );
+            
+            this.scene.add(cube);
+            this.cubes[y][x][z] = cube;
+        }
     }
     
     render() {
-        // Clear canvas
-        this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Get color palette
-        const colors = this.colorPalettes[this.rules] || this.generateColorPalette(this.rules.length);
-        
-        // Calculate visible grid bounds using actualZoom
-        const startX = Math.max(0, Math.floor(this.viewportX / this.actualZoom));
-        const startY = Math.max(0, Math.floor(this.viewportY / this.actualZoom));
-        const endX = Math.min(this.gridSize, Math.ceil((this.viewportX + this.canvas.width) / this.actualZoom));
-        const endY = Math.min(this.gridSize, Math.ceil((this.viewportY + this.canvas.height) / this.actualZoom));
-        
-        // Render visible grid cells with performance optimizations
-        if (this.actualZoom >= 2) {
-            // Use fillRect for larger cells (better performance at high zoom)
-            for (let y = startY; y < endY; y++) {
-                for (let x = startX; x < endX; x++) {
-                    const cellValue = this.grid[y][x];
-                    if (cellValue > 0) {
-                        this.ctx.fillStyle = colors[cellValue % colors.length];
-                        this.ctx.fillRect(
-                            x * this.actualZoom - this.viewportX,
-                            y * this.actualZoom - this.viewportY,
-                            this.actualZoom,
-                            this.actualZoom
-                        );
-                    }
-                }
-            }
-        } else {
-            // Use pixel-level rendering for very small cells
-            for (let y = startY; y < endY; y++) {
-                for (let x = startX; x < endX; x++) {
-                    const cellValue = this.grid[y][x];
-                    if (cellValue > 0) {
-                        const pixelX = Math.floor(x * this.actualZoom - this.viewportX);
-                        const pixelY = Math.floor(y * this.actualZoom - this.viewportY);
-                        if (pixelX >= 0 && pixelX < this.canvas.width && pixelY >= 0 && pixelY < this.canvas.height) {
-                            this.ctx.fillStyle = colors[cellValue % colors.length];
-                            this.ctx.fillRect(pixelX, pixelY, Math.max(1, this.actualZoom), Math.max(1, this.actualZoom));
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Render ants based on performance mode
-        if (this.performanceMode === 'normal' || (this.performanceMode === 'fast' && this.actualZoom >= 5)) {
-            this.renderAnts();
-        }
-    }
-    
-    renderAnts() {
-        this.ants.forEach((ant, index) => {
-            if (!ant.active) return;
-            
-            const antScreenX = ant.x * this.actualZoom - this.viewportX;
-            const antScreenY = ant.y * this.actualZoom - this.viewportY;
-            
-            // Only render if ant is visible
-            if (antScreenX >= -this.actualZoom && antScreenX <= this.canvas.width &&
-                antScreenY >= -this.actualZoom && antScreenY <= this.canvas.height) {
-                
-                // Render ant body
-                this.ctx.fillStyle = '#FF0000';
-                const antSize = Math.max(1, this.actualZoom - 1);
-                this.ctx.fillRect(
-                    antScreenX + (this.actualZoom - antSize) / 2,
-                    antScreenY + (this.actualZoom - antSize) / 2,
-                    antSize,
-                    antSize
-                );
-                
-                // Draw direction indicator if zoom is large enough
-                if (this.actualZoom >= 3 && this.performanceMode === 'normal') {
-                    this.ctx.fillStyle = '#FFFF00';
-                    const centerX = antScreenX + this.actualZoom / 2;
-                    const centerY = antScreenY + this.actualZoom / 2;
-                    const dirX = [0, 1, 0, -1][ant.direction];
-                    const dirY = [-1, 0, 1, 0][ant.direction];
-                    const indicatorSize = Math.max(1, this.actualZoom / 4);
-                    
-                    this.ctx.fillRect(
-                        centerX + dirX * this.actualZoom / 3 - indicatorSize / 2,
-                        centerY + dirY * this.actualZoom / 3 - indicatorSize / 2,
-                        indicatorSize,
-                        indicatorSize
-                    );
-                }
-            }
-        });
+        this.renderer.render(this.scene, this.camera);
     }
     
     generateColorPalette(length) {
-        const colors = ['#000000']; // Always start with black
+        const colors = [0x000000]; // Always start with black
         for (let i = 1; i < length; i++) {
             colors.push(this.getColorFromHue(i * (360 / (length - 1))));
         }
@@ -558,23 +681,13 @@ class LangtonsAntSimulation {
         const currentTime = performance.now();
         const targetFrameTime = 1000 / this.fps;
         
-        if (currentTime - this.lastRenderTime >= targetFrameTime) {
+        if (currentTime - this.lastRenderTime >= targetFrameTime || !this.lastRenderTime) {
             // Batch multiple steps for performance
             for (let i = 0; i < this.stepsPerFrame; i++) {
                 this.step();
             }
             
-            // Skip rendering in ultra mode for better performance
-            if (this.performanceMode === 'ultra') {
-                this.renderSkipCounter++;
-                if (this.renderSkipCounter >= 10) { // Render every 10 frames
-                    this.render();
-                    this.renderSkipCounter = 0;
-                }
-            } else {
-                this.render();
-            }
-            
+            this.render();
             this.lastRenderTime = currentTime;
         }
         
@@ -603,5 +716,5 @@ class LangtonsAntSimulation {
 
 // Initialize the simulation when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    new LangtonsAntSimulation();
+    new LangtonsAnt3DSimulation();
 });

@@ -14,18 +14,25 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #1a1a1a;
     color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
+    position: relative;
 }
 
-#canvas {
+#canvas-container {
     display: block;
     background: #000;
-    border: 1px solid #333;
-    cursor: crosshair;
-    max-width: 100vw;
-    max-height: 100vh;
+    border: none;
+    width: 100vw;
+    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+#canvas-container canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 #controls-trigger {
@@ -199,11 +206,15 @@ body {
     font-weight: bold;
 }
 
-.zoom-info {
+.zoom-info, .control-info {
     font-size: 10px;
     color: #888;
     margin-top: 2px;
     font-style: italic;
+}
+
+.control-info div {
+    margin: 2px 0;
 }
 
 /* Scrollbar styling */
